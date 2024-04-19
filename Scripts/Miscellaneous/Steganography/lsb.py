@@ -111,12 +111,8 @@ def count(arr):
         ret[int(i)] += 1
     return ret
 
-def lsb_space_random(img0):
-    img = img0.copy()
-    for indices in itertools.product(*[range(s) for s in img.shape]):
-        img[indices] &= 0xfe
-        img[indices] |= random.randint(0,1)
-    return img
+def lsb_space_random(img):
+    return (img & 0xfe) | np.random.randint(0, 2, img.shape)
 
 def lsb_freq_random(img0, QF = 50):
     assert img0.shape == (8, 8)
@@ -163,7 +159,7 @@ def lsb_space_chi2(data0):
     data = data0.flatten()
     bins = count(data)
     chi2 = 0
-    for k in range(1,128):
+    for k in range(1,129):
         nexp = (bins[2*k-2]+bins[2*k-1])/2
         if nexp > 5:
             chi2 += (bins[2*k-1]-nexp)**2/nexp
