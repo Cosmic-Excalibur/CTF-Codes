@@ -3,7 +3,6 @@ import os, itertools
 
 # Linearization Equations Attack / Chosen Plaintext Attack
 class CPA_Attack(Cipher):
-    resolved = False
     kernel = None
     
     def __init__(self, pk, a = DEFAULT_A, n = DEFAULT_N, g = DEFAULT_G):
