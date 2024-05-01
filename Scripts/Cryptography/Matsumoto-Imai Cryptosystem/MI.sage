@@ -8,8 +8,8 @@ from Crypto.Util.Padding import pad, unpad
 from enum import Enum
 
 DEFAULT_A = 8
-DEFAULT_N = 23
-DEFAULT_G = [37, 8, 161, 225, 12, 115, 45, 68, 146, 239, 18, 247, 239, 75, 169, 223, 38, 236, 238, 93, 201, 56, 248, 1]
+DEFAULT_N = 15
+DEFAULT_G = [132, 92, 49, 17, 44, 200, 121, 11, 3, 202, 201, 27, 195, 31, 245, 1]
 
 l2b = lambda l: long_to_bytes(int(l))
 b2l = lambda b: ZZ(bytes_to_long(b))

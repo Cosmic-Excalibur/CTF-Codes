@@ -1,5 +1,6 @@
 pre=(
 	"MI.sage"
+	"MI_attacks.sage"
 )
 src=(
 	"tests.sage"
