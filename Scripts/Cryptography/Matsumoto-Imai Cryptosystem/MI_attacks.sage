@@ -2,17 +2,13 @@ from MI import *
 import os, itertools
 
 # Linearization Equations Attack / Chosen Plaintext Attack
-class CPA_Attack(Encrypt):
+class CPA_Attack(Cipher):
     resolved = False
     kernel = None
     
-    def __init__(self, pk, iv = None, a = DEFAULT_A, n = DEFAULT_N, g = DEFAULT_G):
-        Encrypt.__init__(self, pk, iv, a, n, g)
-        if self.IV:
-            self.mode = Mode.CBC
-            assert len(self.IV) == self.n
-        else:
-            self.mode = Mode.ECB
+    def __init__(self, pk, a = DEFAULT_A, n = DEFAULT_N, g = DEFAULT_G):
+        Cipher.__init__(self, a, n, g)
+        self.pk = pk
     
     def _lineq(self, msg):
         pt = self.encode_msg(msg).lift().change_ring(self.Fk)
