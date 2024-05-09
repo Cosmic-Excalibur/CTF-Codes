@@ -1,9 +1,9 @@
-_COMMENTS = '''
+_PROLOGUE = '''
 
 # A direct implementation of https://github.com/spawnmason/randar-explanation/blob/master/README.md
 # Tested in SageMath 9.3
 
-# The code below has been commented since solving SVP does very often fail to give the correct shortest vector. Babai's Rounding method for CVP is exploited in this file.
+# The code below has been discarded since solving SVP does very often fail to give the correct shortest vector. Babai's Rounding method for CVP is exploited in this file.
 
 def solve_xz(dx, dy, dz):
     global L
@@ -31,7 +31,10 @@ def solve_xz(dx, dy, dz):
 
 '''
 
+# The seed of the world, use "/seed" to obtain the seed if you are op. otherwise you need to leak the seed in other ways (not researched yet...)
 WORLD_SEED = -1174984337720969396
+
+# Calculate the area
 evaluate = lambda x, z: (((x * 1280 - 128), (x * 1280 + 1151)), ((z * 1280 - 128), (z * 1280 + 1151)))
 
 def solve_xz(dx, dy, dz):
