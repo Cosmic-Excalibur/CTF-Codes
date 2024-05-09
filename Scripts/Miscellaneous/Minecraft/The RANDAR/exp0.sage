@@ -1,6 +1,8 @@
 _COMMENTS = '''
 
 # A direct implementation of https://github.com/spawnmason/randar-explanation/blob/master/README.md
+# Tested in SageMath 9.3
+
 # The code below has been commented since solving SVP does very often fail to give the correct shortest vector. Babai's Rounding method for CVP is exploited in this file.
 
 def solve_xz(dx, dy, dz):
