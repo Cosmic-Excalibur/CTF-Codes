@@ -1,4 +1,4 @@
-_PROLOGUE = '''
+_INTRO = '''
 
 # A direct implementation of https://github.com/spawnmason/randar-explanation/blob/master/README.md
 # Tested in SageMath 9.3
