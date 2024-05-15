@@ -1,0 +1,1 @@
+flag = b'flag{M1n3CraFt_RaNDaR_!_@Astrageldon}'
