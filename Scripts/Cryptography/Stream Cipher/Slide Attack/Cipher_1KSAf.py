@@ -41,12 +41,16 @@ class Cipher_1KSAf(BlockCipher):
         res = l2b(bitpack(s>>i&1 for i in self.P_INVERSE), self.n)
         return res
         
-    def key_schedule(self, key):
+    def key_schedule(self, key0):
+        key = key0
         while 1:
+            #key = bytes([((key[3]<<7&0xff)+(key[3]<<6&0xff)+key[0])&0xff, key[1], key[2], key[3]])
             yield key
     
-    def key_schedule_reversed(self, key):
+    def key_schedule_reversed(self, key0):
+        key = key0
         while 1:
+            #key = bytes([(-(key[3]<<7&0xff)-(key[3]<<6&0xff)+key[0])&0xff, key[1], key[2], key[3]])
             yield key
         
     def encrypt_block(self, block):
