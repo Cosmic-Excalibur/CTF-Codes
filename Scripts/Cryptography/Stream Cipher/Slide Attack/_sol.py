@@ -17,7 +17,7 @@ iv  = bytes.fromhex(r.recvline().strip().decode())
 r.recvuntil(b'enc = ')
 enc = bytes.fromhex(r.recvline().strip().decode())
 
-print("Retrived:")
+print("Retrieved:")
 print("iv  = " + iv.hex())
 print("enc = " + enc.hex())
 print()
