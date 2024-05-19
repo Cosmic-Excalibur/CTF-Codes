@@ -56,7 +56,7 @@ for pt, ct in tqdm(pairs):
     if t in table:
         k = xor(table[t], tpt)
         print()
-        print("[\x1b[32;1m+\x1b[0m] Key candidate: " + colorify(k.hex()))
+        print("[\x1b[34;1m*\x1b[0m] Key candidate: " + colorify(k.hex()))
         try:
             cipher = Cipher_1KSAf(k, iv=iv)
             dec = cipher.decrypt(enc)

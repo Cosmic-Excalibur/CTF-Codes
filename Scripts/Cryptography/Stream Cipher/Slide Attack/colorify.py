@@ -7,7 +7,8 @@ magenta  = ( 255,   0, 255)
 
 bytes_to_printable_string = lambda s: ''.join(chr(x) if x in range(32, 127) else '\x1b[31;1m·\x1b[0m' for x in s)
 
-def colorify(text, start = blue, end = magenta):
+def colorify(text, start = red, end = yellow):
+#def colorify(text, start = blue, end = magenta):
     gradient = lambda i, l: tuple(int(s + (e - s) * i / l) for s, e in zip(start, end))
     l = max(len(t) for t in text.split("\n"))
     ret = []
