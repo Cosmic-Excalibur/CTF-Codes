@@ -1,4 +1,5 @@
 # SageMath 10.2
+# Only for bytes with length 7 :p
 
 P = 1000003
 mask = 0xffffffffffffffff
