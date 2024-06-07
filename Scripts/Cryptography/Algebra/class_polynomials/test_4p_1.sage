@@ -60,7 +60,8 @@ def solution(D, N):
     while 1:
         P.<RT> = Zn[]
         #W = P([1, 2, -1, -1, 1, -1, -1, 1])
-        T = P([-1, 237, -235, 47, -76, 248, -159, 75, -9, 1])
+        #T = P([-1, 237, -235, 47, -76, 248, -159, 75, -9, 1])
+        T = P(load("ramanujan_811451435.sobj"))
         h = T.degree()
         r = randrange(1, N)
         #j = (X**24 - 16)**3 * polynomial_inv_mod(X**24, W)
@@ -71,7 +72,6 @@ def solution(D, N):
         E = EllipticCurve(R, [A, B])
         #d = E.division_polynomial(N, x=X, two_torsion_multiplicity=0)
         d = E.division_polynomial(N, x=RT, two_torsion_multiplicity=0)
-        print(d)
         g = super_xgcd(d.lift(), T, N)[0]
         if g not in [0, 1, N]:
             return int(g)
@@ -83,7 +83,7 @@ def gen_4p_1_prime(D, pbits):
         if p.denom() == 1 and isPrime(int(p)):
             return p
 
-def main(D = 1187, pbits = 250):
+def main(D = 811451435, pbits = 512):
     print("[\033[34m\033[1m*\033[0m] Generating random prime numbers...")
     p = gen_4p_1_prime(D, pbits)
     q = getPrime(pbits)
@@ -95,3 +95,6 @@ def main(D = 1187, pbits = 250):
         print(f'\n[\033[32m\033[1m+\033[0m] Backdoor Factors Found:\n{n} == {p_} * {q_}')
     else:
         print(f'\n[\033[31m\033[1m-\033[0m] Failed :(')
+
+if "__main__" == __name__:
+    main()
