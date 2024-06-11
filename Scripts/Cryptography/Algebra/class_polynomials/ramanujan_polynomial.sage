@@ -267,7 +267,7 @@ def _polymul_subprocess(prec, batch):
         pol *= poly
     return pol
 
-def ramanujan_polynomial_multi(D, processes1 = 64, processes2 = 32, threshold = 10):
+def ramanujan_polynomial_multi(D, processes1 = 64, processes2_list = [32]):
     assert D < 0 and D % 24 == 13
     rqf = BinaryQF_reduced_representatives(D, primitive_only=True)
     h = len(rqf) # class number
@@ -280,18 +280,24 @@ def ramanujan_polynomial_multi(D, processes1 = 64, processes2 = 32, threshold = 
     cache_table_initialization(prec)
     
     pool = Pool(min(processes1, h))
-    batch_size = ceil(h / processes1)
+    batch_size = ceil(h / min(processes1, h))
     task = functools.partial(_ramanujan_polynomial_subprocess, prec, Dsqrt)
     res = pool.map(task, (rqf[i:i+batch_size] for i in range(0,h,batch_size)))
     pool.close()
     pool.join()
     
-    while len(res) >= threshold:
-        pool = Pool(min(processes2, len(res)))
+    idx = 0
+    while 1:
+        processes2 = processes2_list[min(idx, len(processes2_list)-1)]
+        if len(res) <= processes2:
+            break
+        pool = Pool(processes2)
+        batch_size = ceil(len(res) / processes2)
         task = functools.partial(_polymul_subprocess, prec)
         res = pool.map(task, (res[i:i+batch_size] for i in range(0,len(res),batch_size)))
         pool.close()
         pool.join()
+        idx += 1
     
     pol = R(1)
     for poly in tqdm(res):
@@ -301,5 +307,5 @@ def ramanujan_polynomial_multi(D, processes1 = 64, processes2 = 32, threshold = 
 
 if __name__ == "__main__":
     #time h1 = ramanujan_polynomial(-11-24*1000000, 1)
-    time h2 = ramanujan_polynomial_multi(-11-24*1000000, 80, 32, 2)
+    time h2 = ramanujan_polynomial_multi(-11-24*1000000, 120, [16,8])
     #assert h1 == h2
