@@ -160,6 +160,9 @@ def ramanujan_polynomial(D, cached = 1):
         coeffs = [cof.real().round() for cof in pol.coefficients(sparse=False)]
     return IntegerRing()['x'](coeffs)
 
+def polymul_fft(R, f, g):
+    return R(convolution(list(f), list(g)))
+
 def cache_table_initialization(prec):
     global zeta72_cubed_pow_table, S0_table, S1_table, T2_table, T3_table, S2_table, S3_table, B_table, ST_table, ST_squared_table, zeta72_cubed_pow
     Rc = ComplexField(prec)
@@ -264,10 +267,10 @@ def _polymul_subprocess(prec, batch):
     R = ComplexField(prec)['t']
     pol = R(1)
     for poly in tqdm(batch):
-        pol *= poly
+        pol = polymul_fft(R, pol, poly)
     return pol
 
-def ramanujan_polynomial_multi(D, processes1 = 64, processes2_list = [32]):
+def ramanujan_polynomial_multi(D, processes1 = 64, processes2 = 32):
     assert D < 0 and D % 24 == 13
     rqf = BinaryQF_reduced_representatives(D, primitive_only=True)
     h = len(rqf) # class number
@@ -286,26 +289,30 @@ def ramanujan_polynomial_multi(D, processes1 = 64, processes2_list = [32]):
     pool.close()
     pool.join()
     
-    idx = 0
-    while 1:
-        processes2 = processes2_list[min(idx, len(processes2_list)-1)]
-        if len(res) <= processes2:
-            break
-        pool = Pool(processes2)
-        batch_size = ceil(len(res) / processes2)
-        task = functools.partial(_polymul_subprocess, prec)
-        res = pool.map(task, (res[i:i+batch_size] for i in range(0,len(res),batch_size)))
-        pool.close()
-        pool.join()
-        idx += 1
+    # T(h) ≈ O(h*log(h)^2) if the subpolys start with degree 1 as conjectured in Astrageldon's dream :p
+    while len(res) > 1:
+        end = 0
+        res_tmp = []
+        while end < len(res):
+            pool = Pool(processes2)
+            batch_size = 2
+            upper_limit = min(len(res), end + processes2*batch_size)
+            task = functools.partial(_polymul_subprocess, prec)
+            res_tmp.extend(pool.map(task, (res[i:i+batch_size] for i in range(end,upper_limit,batch_size))))
+            pool.close()
+            pool.join()
+            end += batch_size * processes2
+        print(h, len(res), len(res_tmp))
+        res = res_tmp
     
-    pol = R(1)
-    for poly in tqdm(res):
-        pol *= poly
+    assert len(res) == 1
+    pol = res[0]
     coeffs = [cof.real().round() for cof in pol.coefficients(sparse=False)]
     return IntegerRing()['x'](coeffs)
 
 if __name__ == "__main__":
-    #time h1 = ramanujan_polynomial(-11-24*1000000, 1)
-    time h2 = ramanujan_polynomial_multi(-11-24*1000000, 120, [16,8])
+    #time h1 = ramanujan_polynomial(-11-24*100000, 1)
+    h2_ = load('ramanujan_1011451427.sobj')
+    time h2 = ramanujan_polynomial_multi(-1011451427, 128, 128)
     #assert h1 == h2
+    assert h2_ == h2
