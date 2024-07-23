@@ -3,9 +3,15 @@ Commonly used utils in stream ciphers 4 the lazy guys :p
 Can be renamed as "utils_lazy.py" to avoid namespace pollution.
 """
 
+
 from collections.abc import Iterable, Sequence
 import functools
 
+
+"""
+bitcat : Bitwise concatenation
+intcat : Monic bit sequence bitwise concatenation
+"""
 bitcat = lambda bits: functools.reduce(lambda a, b: a << 1 | b, bits)
 intcat = lambda ints: functools.reduce(lambda a, b: a << b.bit_length() | b, ints)
 
