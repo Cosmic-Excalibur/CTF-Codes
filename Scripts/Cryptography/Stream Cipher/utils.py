@@ -540,7 +540,6 @@ if '__main__' == __name__:
     ])
     print(streamer.input(msg, reversed = True))
     
-    ctx = Context(8, 16, bytes)
     msg = b'This is 16 bytes'
     key = b'Another 16 bytes'
     streamer = Streamer(ctx)
@@ -550,3 +549,30 @@ if '__main__' == __name__:
         [ctx.ror_key, 3]
     ])
     print(streamer.input(msg, maxstep = 2))
+    
+    ctx = Context(32, 4, list)
+    msg = [114514, 1919810, 893, 133700]
+    key = [1337, 7331, 422244, 110010]
+    table = [1, 3, 2, 0]
+    shifts = [20, 30, 15, 3]
+    streamer = Streamer(ctx)
+    streamer.set_stream([
+        [ctx.xor, key],
+        [ctx.bit_reverse],
+        [ctx.ror_key, 14],
+        [ctx.rol, shifts],
+        [ctx.permute_inv, table]
+    ])
+    print(streamer.input(msg))
+    
+    msg = [3087042538, 1047736, 815579137, 2539651125]
+    key = [1337, 7331, 422244, 110010]
+    streamer = Streamer(ctx)
+    streamer.set_stream([
+        [ctx.xor, key],
+        [ctx.bit_reverse],
+        [ctx.ror_key, 14],
+        [ctx.rol, shifts],
+        [ctx.permute_inv, table]
+    ])
+    print(streamer.input(msg, reversed = True))
