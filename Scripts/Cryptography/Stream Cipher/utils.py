@@ -1,9 +1,13 @@
 """
 Commonly used utils in stream ciphers 4 the lazy guys :p
-can be renamed as "utils_lazy.py" to avoid namespace pollution
+Can be renamed as "utils_lazy.py" to avoid namespace pollution.
 """
 
 from collections.abc import Iterable, Sequence
+import functools
+
+bitcat = lambda bits: functools.reduce(lambda a, b: a << 1 | b, bits)
+intcat = lambda ints: functools.reduce(lambda a, b: a << b.bit_length() | b, ints)
 
 class Context:
     def __init__(self, m: int, n: int, ret: type = list):
@@ -268,7 +272,31 @@ class Context:
         """
         mask = (1 << self.m) - 1
         return self.ret((m >> key | m << (self.m - key)) & mask for m in message)
-
+    
+    def bit_reverse(self, message: Iterable):
+        """
+        Reverse bits in each entry of the message.
+        
+        Bit mapping (MSB):
+        
+        m  ||  m-1  ||  ...  ||  1  ||  0
+        |       |                |      |
+        v       v                v      v
+        0       1               m-1     m
+        
+        Parameters
+        ----------
+        message : Iterable of ints
+            The input message.
+        
+        Returns
+        -------
+        out : Iterable of ints
+            An iterable consisting of ints
+            resulting from the entrywise bit reversal.
+        
+        """
+        return self.ret(bitcat(m >> i & 1 for i in range(self.m)) for m in message)
 
 
 """
@@ -276,6 +304,9 @@ Several sanity checks
 """
 
 if '__main__' == __name__:
+    print(bitcat([1,0,1,1,0]), 0b10110)
+    print(intcat([255, 254, 253]), 255 * 65536 + 254 * 256 + 253)
+
     ctx = Context(8, 16, bytes)
     
     msg1 = b'This is 16 bytes'
@@ -302,3 +333,5 @@ if '__main__' == __name__:
     
     print(ctx.rol_key(msg1, 4))
     print(ctx.ror_key(msg5, 4))
+    
+    print(ctx.bit_reverse(msg1))
