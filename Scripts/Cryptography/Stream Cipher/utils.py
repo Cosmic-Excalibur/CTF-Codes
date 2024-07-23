@@ -5,6 +5,7 @@ Can be renamed as "utils_lazy.py" to avoid namespace pollution.
 
 
 from collections.abc import Iterable, Sequence
+from typing import Callable
 import functools
 
 
@@ -34,7 +35,7 @@ class Context:
         self.n = n
         self.ret = ret
     
-    def xor(self, msg1: Iterable, msg2: Iterable):
+    def xor(self, msg1: Iterable, msg2: Iterable) -> Iterable:
         """
         Entrywise then bitwise xor
         without checking the lengths.
@@ -53,7 +54,7 @@ class Context:
         """
         return self.ret(x ^ y for x, y in zip(msg1, msg2))
     
-    def xor_key(self, msg: Iterable, key: int):
+    def xor_key(self, msg: Iterable, key: int) -> Iterable:
         """
         Entrywise xor using the same key.
         
@@ -73,7 +74,7 @@ class Context:
         """
         return self.ret(x ^ key for x in msg)
     
-    def permute(self, message: Sequence, table: Sequence):
+    def permute(self, message: Sequence, table: Sequence) -> Iterable:
         """
         Perform a permutation with out checking
         the lengths.
@@ -112,7 +113,7 @@ class Context:
             ret[table[i]] = message[i]
         return self.ret(ret)
     
-    def permute_inv(self, message: Sequence, table: Sequence):
+    def permute_inv(self, message: Sequence, table: Sequence) -> Iterable:
         """
         Invert a permutation with out checking
         the lengths.
@@ -147,7 +148,7 @@ class Context:
         """
         return self.ret(message[table[i]] for i in range(len(message)))
     
-    def rol(self, message: Iterable, keys: Iterable):
+    def rol(self, message: Iterable, keys: Iterable) -> Iterable:
         """
         Circularly shift the bits of each message entry
         leftward according to the corresponding
@@ -181,7 +182,7 @@ class Context:
         mask = (1 << self.m) - 1
         return self.ret((m << k | m >> (self.m - k)) & mask for m, k in zip(message, keys))
     
-    def ror(self, message: Iterable, keys: Iterable):
+    def ror(self, message: Iterable, keys: Iterable) -> Iterable:
         """
         Circularly shift the bits of each message entry
         rightward according to the corresponding
@@ -215,7 +216,7 @@ class Context:
         mask = (1 << self.m) - 1
         return self.ret((m >> k | m << (self.m - k)) & mask for m, k in zip(message, keys))
     
-    def rol_key(self, message: Iterable, key: int):
+    def rol_key(self, message: Iterable, key: int) -> Iterable:
         """
         Circularly shift the bits of each message entry
         leftward according to the shift operand `key`.
@@ -247,7 +248,7 @@ class Context:
         mask = (1 << self.m) - 1
         return self.ret((m << key | m >> (self.m - key)) & mask for m in message)
     
-    def ror_key(self, message: Iterable, key: int):
+    def ror_key(self, message: Iterable, key: int) -> Iterable:
         """
         Circularly shift the bits of each message entry
         rightward according to the shift operand `key`.
@@ -279,7 +280,7 @@ class Context:
         mask = (1 << self.m) - 1
         return self.ret((m >> key | m << (self.m - key)) & mask for m in message)
     
-    def bit_reverse(self, message: Iterable):
+    def bit_reverse(self, message: Iterable) -> Iterable:
         """
         Reverse bits in each entry of the message.
         
@@ -303,6 +304,180 @@ class Context:
         
         """
         return self.ret(bitcat(m >> i & 1 for i in range(self.m)) for m in message)
+    
+    def _reverse(self, operation: Callable, *args) -> Iterable:
+        """
+        Reverse an operation.
+        
+        Parameters
+        ----------
+        operation : Callable
+            The operation to be reversed.
+        args : argument list
+            Arguments for the operation.
+        
+        """
+        msg = args[0]
+        if operation == self.xor:
+            return self.xor(msg, *args[1:])
+        elif operation == self.xor_key:
+            return self.xor_key(msg, *args[1:])
+        elif operation == self.permute:
+            return self.permute_inv(msg, *args[1:])
+        elif operation == self.permute_inv:
+            return self.permute(msg, *args[1:])
+        elif operation == self.rol:
+            return self.ror(msg, *args[1:])
+        elif operation == self.ror:
+            return self.rol(msg, *args[1:])
+        elif operation == self.rol_key:
+            return self.ror_key(msg, *args[1:])
+        elif operation == self.ror_key:
+            return self.rol_key(msg, *args[1:])
+        elif operation == self.bit_reverse:
+            return self.bit_reverse(msg, *args[1:])
+        
+    
+class Streamer:
+    def __init__(self, context: Context):
+        """
+        Specify the context!
+        
+        Parameters
+        ----------
+        context : Context
+            A context object defined by you :p
+        
+        """
+        self.context = context
+        self.stream = []
+    
+    def set_stream(self, stream: Sequence):
+        """
+        Specify the bit operation stream.
+        
+        The stream:
+        
+                 head  -------->  tail
+                  |                |
+                  v                v
+        stream = op_1, op_2, ..., op_n
+        op_i = op_name, *args
+        
+        Parameters
+        ----------
+        stream : Sequence of sequences
+            A stream of bit operations in the context,
+            input format defined above.
+        
+        Examples
+        --------
+        >>> ctx = Context(8, 16, bytes)
+        >>> msg = b'This is 16 bytes'
+        >>> key = b'Another 16 bytes'
+        >>> streamer = Streamer(ctx)
+        >>> streamer.set_stream([
+        ...     [ctx.xor, key],
+        ...     [ctx.bit_reverse],
+        ...     [ctx.ror_key, 3]
+        ... ])
+        
+        The above specifies a stream of operations that
+        firstly xors the input with `key`, then reverse
+        the bits of each entry, and lastly rotate the bits
+        rightward by 3 bits.
+        
+        """
+        self.stream = stream
+    
+    def input(self, message: Iterable, maxstep: int = -1, reversed: bool = False) -> Iterable:
+        """
+        Input your message into either end of the stream,
+        note that your stream has two ends. When your input
+        goes into the head, the streamer encrypts it by
+        performing the operations the stream contains.
+        When your input goes into the tail, the streamer
+        decrypts it by performing inverse operations
+        of the stream!
+        
+        Parameters
+        ----------
+        message : Iterable of ints
+            The input message.
+        maxstep : int
+            Not more than `maxstep` operations are performed
+            in the stream. Set `maxstep` to negative to revoke
+            the limit.
+        reversed : bool
+            Determines whether the input is put into the head
+            (`reversed = False`) or the tail (`reversed = True`).
+        
+        Examples
+        --------
+        >>> ctx = Context(8, 16, bytes)
+        >>> msg = b'This is 16 bytes'
+        >>> key = b'Another 16 bytes'
+        >>> streamer = Streamer(ctx)
+        >>> streamer.set_stream([
+        ...     [ctx.xor, key],
+        ...     [ctx.bit_reverse],
+        ...     [ctx.ror_key, 3]
+        ... ])
+        >>> streamer.input(msg)
+        b'\x15\x0c\x0c\x1cB\x06\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+        
+        One can equivalently use instructions below.
+        
+        >>> ctx = Context(8, 16, bytes)
+        >>> msg = b'This is 16 bytes'
+        >>> key = b'Another 16 bytes'
+        >>> msg = ctx.xor(msg, key)
+        >>> msg = ctx.bit_reverse(msg)
+        >>> msg = ctx.ror_key(msg, 3)
+        >>> msg
+        b'\x15\x0c\x0c\x1cB\x06\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+        
+        Putting the message in other end.
+        
+        >>> ctx = Context(8, 16, bytes)
+        >>> msg = b'\x15\x0c\x0c\x1cB\x06\x10\x00\x00\x00\
+            \x00\x00\x00\x00\x00\x00'
+        >>> key = b'Another 16 bytes'
+        >>> streamer = Streamer(ctx)
+        >>> streamer.set_stream([
+        ...     [ctx.xor, key],
+        ...     [ctx.bit_reverse],
+        ...     [ctx.ror_key, 3]
+        ... ])
+        >>> streamer.input(msg, reversed = True)
+        b'This is 16 bytes'
+        
+        Which is equivalent to instructions below.
+        
+        >>> ctx = Context(8, 16, bytes)
+        >>> msg = b'\x15\x0c\x0c\x1cB\x06\x10\x00\x00\x00\
+            \x00\x00\x00\x00\x00\x00'
+        >>> key = b'Another 16 bytes'
+        >>> msg = ctx.rol_key(msg, 3)
+        >>> msg = ctx.bit_reverse(msg)
+        >>> msg = ctx.xor(msg, key)
+        >>> msg
+        b'This is 16 bytes'
+        
+        """
+        msg = self.context.ret(message)
+        if not reversed:
+            for op in self.stream:
+                if maxstep == 0: return msg
+                msg = op[0](msg, *op[1:])
+                maxstep -= 1
+        else:
+            for op in self.stream.__reversed__():
+                if maxstep == 0: return msg
+                msg = self.context._reverse(op[0], msg, *op[1:])
+                maxstep -= 1
+        return msg
+
 
 
 """
@@ -310,7 +485,7 @@ Several sanity checks
 """
 
 if '__main__' == __name__:
-    print(bitcat([1,0,1,1,0]), 0b10110)
+    print(bitcat([1, 0, 1, 1, 0]), 0b10110)
     print(intcat([255, 254, 253]), 255 * 65536 + 254 * 256 + 253)
 
     ctx = Context(8, 16, bytes)
@@ -341,3 +516,25 @@ if '__main__' == __name__:
     print(ctx.ror_key(msg5, 4))
     
     print(ctx.bit_reverse(msg1))
+    
+    ctx = Context(8, 16, bytes)
+    msg = b'This is 16 bytes'
+    key = b'Another 16 bytes'
+    streamer = Streamer(ctx)
+    streamer.set_stream([
+        [ctx.xor, key],
+        [ctx.bit_reverse],
+        [ctx.ror_key, 3]
+    ])
+    print(streamer.input(msg))
+    
+    ctx = Context(8, 16, bytes)
+    msg = b'\x15\x0c\x0c\x1cB\x06\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+    key = b'Another 16 bytes'
+    streamer = Streamer(ctx)
+    streamer.set_stream([
+        [ctx.xor, key],
+        [ctx.bit_reverse],
+        [ctx.ror_key, 3]
+    ])
+    print(streamer.input(msg, reversed = True))
