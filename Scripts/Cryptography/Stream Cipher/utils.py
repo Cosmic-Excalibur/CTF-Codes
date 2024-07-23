@@ -305,37 +305,41 @@ class Context:
         """
         return self.ret(bitcat(m >> i & 1 for i in range(self.m)) for m in message)
     
-    def _reverse(self, operation: Callable, *args) -> Iterable:
+    def _invert(self, operation: Callable, *args) -> Callable:
         """
-        Reverse an operation.
+        Invert an operation with specific parameters.
         
         Parameters
         ----------
         operation : Callable
             The operation to be reversed.
         args : argument list
-            Arguments for the operation.
+            Arguments except the message for the operation.
+        
+        Returns
+        -------
+        out : Callable
+            The inverted operation with specific parameters.
         
         """
-        msg = args[0]
         if operation == self.xor:
-            return self.xor(msg, *args[1:])
+            return lambda msg: self.xor(msg, *args)
         elif operation == self.xor_key:
-            return self.xor_key(msg, *args[1:])
+            return lambda msg: self.xor_key(msg, *args)
         elif operation == self.permute:
-            return self.permute_inv(msg, *args[1:])
+            return lambda msg: self.permute_inv(msg, *args)
         elif operation == self.permute_inv:
-            return self.permute(msg, *args[1:])
+            return lambda msg: self.permute(msg, *args)
         elif operation == self.rol:
-            return self.ror(msg, *args[1:])
+            return lambda msg: self.ror(msg, *args)
         elif operation == self.ror:
-            return self.rol(msg, *args[1:])
+            return lambda msg: self.rol(msg, *args)
         elif operation == self.rol_key:
-            return self.ror_key(msg, *args[1:])
+            return lambda msg: self.ror_key(msg, *args)
         elif operation == self.ror_key:
-            return self.rol_key(msg, *args[1:])
+            return lambda msg: self.rol_key(msg, *args)
         elif operation == self.bit_reverse:
-            return self.bit_reverse(msg, *args[1:])
+            return lambda msg: self.bit_reverse(msg, *args)
         
     
 class Streamer:
@@ -389,6 +393,10 @@ class Streamer:
         
         """
         self.stream = stream
+        tmp = []
+        for op in self.stream.__reversed__():
+            tmp.append(self.context._invert(*op[:]))
+        self._stream_reversed = tmp
     
     def input(self, message: Iterable, maxstep: int = -1, reversed: bool = False) -> Iterable:
         """
@@ -466,16 +474,10 @@ class Streamer:
         
         """
         msg = self.context.ret(message)
-        if not reversed:
-            for op in self.stream:
-                if maxstep == 0: return msg
-                msg = op[0](msg, *op[1:])
-                maxstep -= 1
-        else:
-            for op in self.stream.__reversed__():
-                if maxstep == 0: return msg
-                msg = self.context._reverse(op[0], msg, *op[1:])
-                maxstep -= 1
+        for op in (self._stream_reversed if reversed else self.stream):
+            if maxstep == 0: return msg
+            msg = op(msg) if reversed else op[0](msg, *op[1:])
+            maxstep -= 1
         return msg
 
 
