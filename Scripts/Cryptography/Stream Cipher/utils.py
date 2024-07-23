@@ -434,7 +434,8 @@ class Streamer:
         >>> streamer.input(msg)
         b'\x15\x0c\x0c\x1cB\x06\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00'
         
-        One can equivalently use instructions below.
+        One can equivalently use instructions below
+        to put the message into the head.
         
         >>> ctx = Context(8, 16, bytes)
         >>> msg = b'This is 16 bytes'
@@ -445,7 +446,7 @@ class Streamer:
         >>> msg
         b'\x15\x0c\x0c\x1cB\x06\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00'
         
-        Putting the message in other end.
+        Putting the message into the tail.
         
         >>> ctx = Context(8, 16, bytes)
         >>> msg = b'\x15\x0c\x0c\x1cB\x06\x10\x00\x00\x00\
@@ -519,7 +520,6 @@ if '__main__' == __name__:
     
     print(ctx.bit_reverse(msg1))
     
-    ctx = Context(8, 16, bytes)
     msg = b'This is 16 bytes'
     key = b'Another 16 bytes'
     streamer = Streamer(ctx)
@@ -530,7 +530,6 @@ if '__main__' == __name__:
     ])
     print(streamer.input(msg))
     
-    ctx = Context(8, 16, bytes)
     msg = b'\x15\x0c\x0c\x1cB\x06\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00'
     key = b'Another 16 bytes'
     streamer = Streamer(ctx)
@@ -540,3 +539,14 @@ if '__main__' == __name__:
         [ctx.ror_key, 3]
     ])
     print(streamer.input(msg, reversed = True))
+    
+    ctx = Context(8, 16, bytes)
+    msg = b'This is 16 bytes'
+    key = b'Another 16 bytes'
+    streamer = Streamer(ctx)
+    streamer.set_stream([
+        [ctx.xor, key],
+        [ctx.bit_reverse],
+        [ctx.ror_key, 3]
+    ])
+    print(streamer.input(msg, maxstep = 2))
