@@ -312,7 +312,9 @@ def ramanujan_polynomial_multi(D, processes1 = 64, processes2 = 32):
 
 if __name__ == "__main__":
     #time h1 = ramanujan_polynomial(-11-24*100000, 1)
-    h2_ = load('ramanujan_1011451427.sobj')
-    time h2 = ramanujan_polynomial_multi(-1011451427, 128, 128)
+    #h2_ = load('ramanujan_1011451427.sobj')
+    #time h2 = ramanujan_polynomial_multi(-1011451427, 128, 128)
     #assert h1 == h2
-    assert h2_ == h2
+    #assert h2_ == h2ac
+    time h = ramanujan_polynomial_multi(-1035451427, 128, 128)
+    save(h, 'ramanujan_1035451427.sobj')
