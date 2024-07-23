@@ -276,7 +276,7 @@ Several sanity checks
 """
 
 if '__main__' == __name__:
-    context = Context(8, 16, bytes)
+    ctx = Context(8, 16, bytes)
     
     msg1 = b'This is 16 bytes'
     msg2 = b'Another 16 bytes'
@@ -291,14 +291,14 @@ if '__main__' == __name__:
     ]
     shifts = [0, 1, 2, 3, 4, 5, 6, 7, 8, 7, 6, 5, 4, 3, 2, 1]
     
-    print(context.xor(msg1, msg2))
-    print(context.xor_key(msg1, 42))
+    print(ctx.xor(msg1, msg2))
+    print(ctx.xor_key(msg1, 42))
     
-    print(context.permute(msg1, table))
-    print(context.permute_inv(msg3, table))
+    print(ctx.permute(msg1, table))
+    print(ctx.permute_inv(msg3, table))
     
-    print(context.rol(msg1, shifts))
-    print(context.ror(msg4, shifts))
+    print(ctx.rol(msg1, shifts))
+    print(ctx.ror(msg4, shifts))
     
-    print(context.rol_key(msg1, 4))
-    print(context.ror_key(msg5, 4))
+    print(ctx.rol_key(msg1, 4))
+    print(ctx.ror_key(msg5, 4))
