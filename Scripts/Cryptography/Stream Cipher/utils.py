@@ -142,6 +142,186 @@ def is_perfect_square(n: int) -> bool:
 
     return isqrt(n) ** 2 == n
 
+def ilog(n: int, a: int) -> bool:
+    """
+    Check if `a^k = n` holds for some non-negative
+    integer. If it's true, return the exponent of
+    `n` with the base `a`.
+    
+    Parameters
+    ----------
+    n : int
+        The target integer, should be positive.
+    a : int
+        The base, should be positive.
+    
+    Returns
+    -------
+    exp : int
+        The exponent of `n` with the base `a`
+        if `res` is `True`, else `None`.
+    res : bool
+        `True` if `n` is indeed a power of `a`,
+        else `False`.
+    
+    """
+    if n == 1: return (0, True)
+    if a == 1: return (None, False)
+    c = 0
+    while n > 1:
+        if n % a: return (None, False)
+        n //= a    # not optimized
+        c += 1
+    return (c, True)
+
+def gmul(m: int, a: int, b: int, modulus: int) -> int:
+    """
+    Do a multiplication on `GF(2^m)=GF(2)/modulus`,
+    and `modulus` should be irreducible in concept.
+    
+    `a, b, modulus` must not be negative and
+    should be less than `2^m`.
+    
+    ref: https://stackoverflow.com/questions/66115739/aes-mixcolumns-with-python
+    
+    
+    Parameters
+    ----------
+    m : int
+        Number of bits.
+    a : int
+        The first multiplicand
+        as a polynomial element in `GF(2^m)`.
+    b : int
+        The second multiplicand
+        as a polynomial element in `GF(2^m)`.
+    modulus : int
+        The modulus of the field `GF(2^m)`.
+
+    Returns
+    -------
+    out : int
+        An integer as the polynomial of
+        the product of `a` and `b`.
+    
+    Examples
+    --------
+    
+    If we choose
+        `m       =    8`,
+        `a       = 0x11`,
+        `b       = 0x45`,
+        `modulus = 0x2b`,
+    Then `gmul(m, a, b, modulus)` is equal to
+    
+    `(x^4 + 1) * (x^6 + x^2 + 1)`
+        on `GF(2^8)/(x^8 + x^5 + x^3 + x + 1)`
+    
+    which is `x^7 + x^5 + x^4 + x^3 + 1`,
+    and equivalently `0xb9`.
+    
+    """
+    if b < 0:
+        raise ValueError("Multiplicand `b` must not be negative.")
+    if b == 1:
+        return a
+    tmp = (a << 1) & (1 << m) - 1
+    if b == 2:
+        return tmp if a < 1 << m-1 else tmp ^ modulus
+    half = gmul(m, a, 2, modulus)
+    half = gmul(m, half, b >> 1, modulus)
+    return half ^ a if b & 1 else half
+
+def gdeg(a: int) -> int:
+    """
+    The degree of `a` as a polynomial on `GF(2)[x]`.
+    More simply `a.bit_length() - 1`.
+    
+    ref: https://stackoverflow.com/questions/45442396/a-pure-python-way-to-calculate-the-multiplicative-inverse-in-gf28-using-pytho
+    
+    Parameters
+    ----------
+    a : int
+        The target integer as a polynomial
+        on `GF(2)[x]`
+    
+    Returns
+    -------
+    out : int
+        The degree of the polynomial.
+    
+    """
+    res = 0
+    a >>= 1
+    while a:
+        a >>= 1;
+        res += 1;
+    return res
+
+def ginv(m: int, a: int, modulus: int) -> int:
+    """
+    Calculate the inverse of `a` as an element
+    on `GF(2^m)=GF(2)/modulus`.
+    `modulus` should be irreducible in concept.
+    
+    `a, modulus` must not be negative and
+    should be less than `2^m`.
+    
+    ref: https://stackoverflow.com/questions/45442396/a-pure-python-way-to-calculate-the-multiplicative-inverse-in-gf28-using-pytho
+    
+    
+    Parameters
+    ----------
+    m : int
+        Number of bits.
+    a : int
+        The integer to be inverted
+        as a polynomial element in `GF(2^m)`.
+    modulus : int
+        The modulus of the field `GF(2^m)`.
+
+    Returns
+    -------
+    out : int
+        An integer as the polynomial of
+        the product of `a` and `b`.
+    
+    Examples
+    --------
+    
+    If we choose
+        `m       =    8`,
+        `a       = 0x05`,
+        `modulus = 0x1b`,
+    Then `ginv(m, a, modulus)` is equal to
+    
+    `1 / (x^2 + 1)`
+        on `GF(2^8)/(x^8 + x^4 + x^3 + x + 1)`
+    
+    which is `x^6 + x^4 + x`,
+    and equivalently `0x52`.
+    """
+    v = modulus
+    g1 = 1
+    g2 = 0
+    j = gdeg(a) - m
+    mask = (1 << m) - 1
+
+    while (a != 1) :
+        if (j < 0) :
+            a, v = v, a
+            g1, g2 = g2, g1
+            j = -j
+
+        a ^= v << j
+        g1 ^= g2 << j
+
+        a &= mask
+        g1 &= mask
+
+        j = gdeg(a) - gdeg(v)
+
+    return g1
 
 NaturalNumbers = lambda: count(start = 0)
 
@@ -159,7 +339,7 @@ UNMIX_COLUMN = [
     11, 13, 9, 14
 ]
 
-SBOX = [
+AES_SBOX = [
 	0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
 	0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
 	0xb7, 0xfd, 0x93, 0x26, 0x36, 0x3f, 0xf7, 0xcc, 0x34, 0xa5, 0xe5, 0xf1, 0x71, 0xd8, 0x31, 0x15,
@@ -178,7 +358,7 @@ SBOX = [
 	0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16
 ]
 
-INV_SBOX = [
+AES_INV_SBOX = [
     0x52, 0x09, 0x6a, 0xd5, 0x30, 0x36, 0xa5, 0x38, 0xbf, 0x40, 0xa3, 0x9e, 0x81, 0xf3, 0xd7, 0xfb, 
     0x7c, 0xe3, 0x39, 0x82, 0x9b, 0x2f, 0xff, 0x87, 0x34, 0x8e, 0x43, 0x44, 0xc4, 0xde, 0xe9, 0xcb, 
     0x54, 0x7b, 0x94, 0x32, 0xa6, 0xc2, 0x23, 0x3d, 0xee, 0x4c, 0x95, 0x0b, 0x42, 0xfa, 0xc3, 0x4e, 
@@ -197,6 +377,129 @@ INV_SBOX = [
     0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0c, 0x7d
 ]
 
+class SBOX:
+    sbox = None
+    
+    def __init__(self, *args, **kwargs):
+        l = len(args) + len(kwargs)
+        if l == 3:
+            self.__init__affine(*args, **kwargs)
+        elif l == 1:
+            self.__init__table(*args, **kwargs)
+        else:
+            raise TypeError("Invalid args    :P")
+        
+    def __init__affine(self, A: Sequence, b: Sequence, modulus: int):
+        """
+        Initialize an SBOX along with its inverse
+        according to an affine transformation
+        defined by
+        
+        `s = A*v + b`
+        
+        where `v` is the input entry but inverted as an element
+        on `GF(2^m)/modulus` (`0` remains unchanged), and `s` the
+        output entry. A is an `m` x `m` square matrix.
+        
+        Parameters
+        ----------
+        A : Sequence of ints
+            A sequence of `m^2` integers as matrix
+            `A` in the affine transformation with
+            dimension `m` x `m`. All entries in
+            the matrix should be in `{0, 1}`.
+        b : Sequence of ints
+            A sequence of `m` integers ranging from
+            `0` to `1`.
+        modulus : int
+            The modulus of the field `GF(2^m)`.
+        
+        """
+        assert len(b) > 0 and len(b)**2 == len(A), "Invalid size~"
+        self.m = len(b)
+        self.l = 1 << self.m
+        self.A = A
+        self.b = b
+        self.modulus = modulus
+        self.init()
+    
+    def __init__table(self, sbox: Sequence):
+        """
+        Initialize an SBOX along with its inverse
+        according to its (forward) lookup table.
+        
+        Parameters
+        ----------
+        sbox : Sequence of ints
+            A sequence of `2^m` distinct integers
+            in the range of `0 ~ 2^m-1`.
+        
+        """
+        length = len(sbox)
+        assert length > 0, "Invalid size~"
+        exp, res = ilog(length, 2)
+        assert res, "`%s` is not a power of `2`." % length
+        self.sbox = sbox
+        self.m = exp
+        self.l = 1 << self.m
+        self.init()
+    
+    def init(self):
+        """
+        Calculate the SBOX along with its inverse.
+        
+        """
+        if self.sbox == None:
+            v = [ginv(self.m, k, self.modulus) if k else 0 for k in range(self.l)]
+            self.sbox = [bitcat(xorsum(self.A[i*self.m + j] * (k >> j & 1) for j in range(self.m)) ^ self.b[i] for i in range(self.m-1, -1, -1)) for k in v]
+        self.sbox_inv = [self.sbox.index(k) for k in range(self.l)]
+    
+    def fwd(self, entry: int) -> int:
+        """
+        Forward S-BOX
+        Map an integer by a substitution box,
+        which is usually a lookup table
+        for a certain affine transformation.
+        
+        For more details, refer to
+        https://en.wikipedia.org/wiki/Rijndael_S-box
+        
+        Parameters
+        ----------
+        entry : int
+            The input integer with `m` bits.
+        
+        Returns
+        -------
+        out : int
+            The transformed integer.
+        
+        """
+        return self.sbox[entry]
+    
+    def bck(self, entry: int) -> int:
+        """
+        Inverse S-BOX
+        Invert the Forward S-BOX transformation.
+        
+        For more details, refer to
+        https://en.wikipedia.org/wiki/Rijndael_S-box
+        
+        Parameters
+        ----------
+        entry : int
+            The input integer with `m` bits.
+        
+        Returns
+        -------
+        out : int
+            The transformed integer.
+        
+        """
+        return self.sbox_inv[entry]
+            
+
+
 class Context:
     def __init__(self, m: int, n: int, ret: type = list):
         """
@@ -206,10 +509,16 @@ class Context:
         ----------
         m : int
             Number of bits for each entry.
+            An entry is essentially a concatenation of
+            a fixed number of bits and represented by
+            integers.
+            Entries are the fundamentals of a message,
+            which consists of a sequence of entries.
         n : int
-            Length of messages.
+            The fixed length for a message, that is,
+            the number of entries in each message.
         ret : Iterable type
-            Basic type for return values.
+            Basic type for return values and messages.
         
         """
         self.m = m
@@ -519,7 +828,7 @@ class Context:
         
         a00  a01  a02  a03        a00  a01  a02  a03
         ------------------        ------------------
-        a05  a06  a07  a08        a04  a05  a06  a07
+        a05  a06  a07  a04        a04  a05  a06  a07
         ------------------   ->   ------------------
         a10  a11  a08  a09        a08  a09  a10  a11
         ------------------        ------------------
@@ -573,72 +882,50 @@ class Context:
         """
         return self.ret(bitcat(m >> i & 1 for i in range(self.m)) for m in message)
     
-    def _gmul(self, a: int, b: int, modulus: int) -> int:
+    def _mix_column(self, column: Iterable, matrix: Iterable, modulus: int) -> Sequence:
         """
-        Multiplication on `GF(2^8)=GF(2)/modulus`,
-        and `modulus` should be irreducible in concept.
+        Perform the linear transformation on `column`
+        as a vector in `GF(2^m)=GF(2)/modulus`.
         
-        `a, b, modulus` must not be negative and
-        should be less than `2^m`.
-        
-        ref: https://stackoverflow.com/questions/66115739/aes-mixcolumns-with-python
-        
+        For more details, refer to
+        https://en.wikipedia.org/wiki/Rijndael_MixColumns
         
         Parameters
         ----------
-        a : int
-            The first polynomial as an element in GF(2^8).
-        b : int
-            The second polynomial as an element in GF(2^8).
-
+        column : Iterable of ints
+            The target vector with dimension `order`.
+        matrix : Iterable of ints
+            A linear list with `n` elements
+            as a `order` x `order` matrix.
+        
         Returns
         -------
-        out : int
-            An integer as the polynomial of
-            the product of `a` and `b`.
-        
-        Examples
-        --------
-        
-        If we choose
-            `m       =    8`,
-            `a       = 0x11`,
-            `b       = 0x45`,
-            `modulus = 0x2b`,
-        Then `_gmul(a, b, modulus)` is equal to
-        
-        `(x^4 + 1) * (x^6 + x^2 + 1)`
-            on `GF(2^8)/(x^8 + x^5 + x^3 + x + 1)`
-        
-        which is `x^7 + x^5 + x^4 + x^3 + 1`,
-        and equivalently `0xb9`.
+        out : Sequence of ints
+            The transformed vector.
         
         """
-        if b < 0:
-            raise ValueError("Multiplicand `b` must not be negative.")
-        if b == 1:
-            return a
-        tmp = (a << 1) & self.mask
-        if b == 2:
-            return tmp if a < 1 << self.m-1 else tmp ^ modulus
-        half = self._gmul(a, 2, modulus)
-        half = self._gmul(half, b >> 1, modulus)
-        return half ^ a if b & 1 else half
-    
-    def _mix_column(self, column: Iterable, matrix: Iterable, modulus: int) -> Sequence:
-        """
-        
-        """
-        return [xorsum(self._gmul(c, m, modulus) for c, m in chunk) for chunk in chunks(zip(cycle(column), matrix), self.order)]
-    
-    def _sbox(self, entry: int, sbox: Sequence) -> int:
-        """
-        
-        """
-        return sbox[entry]
+        return [xorsum(gmul(self.m, c, m, modulus) for c, m in chunk) for chunk in chunks(zip(cycle(column), matrix), self.order)]
     
     def mix_columns(self, message: Sequence) -> Iterable:
         """
+        Perform the Rijndael MixColumns transformation
+        on each column of the message as a
+        `order` x `order` matrix.
+        
+        .. note::
+            Linear transformations other than
+            the Rijndael MixColumns will be supported
+            in the future.
+        
+        Parameters
+        ----------
+        message : Iterable of ints
+            The target message as a `order` x `order` matrix.
+        
+        Returns
+        -------
+        out : Iterable of ints
+            The transformed message.
         
         """
         assert self.is_square, "Not a square matrix."
@@ -653,6 +940,24 @@ class Context:
     
     def unmix_columns(self, message: Sequence) -> Iterable:
         """
+        Invert the Rijndael MixColumns transformation
+        on each column of the message as a
+        `order` x `order` matrix.
+        
+        .. note::
+            Linear transformations other than
+            the Rijndael MixColumns will be supported
+            in the future.
+        
+        Parameters
+        ----------
+        message : Iterable of ints
+            The transformed message as a `order` x `order` matrix.
+        
+        Returns
+        -------
+        out : Iterable of ints
+            The original message.
         
         """
         matrix = UNMIX_COLUMN
@@ -665,21 +970,43 @@ class Context:
             ret[i: self.n + i: self.order] = tmp
         return self.ret(ret)
     
-    def sbox(self, message: Iterable) -> Iterable:
+    def sbox(self, message: Iterable, sbox: SBOX) -> Iterable:
         """
+        Perform S-BOX transformations entrywise.
+        
+        Parameters
+        ----------
+        message : Iterable
+            The input message.
+        sbox : SBOX
+            The S-BOX object.
+        
+        Returns
+        -------
+        out : int
+            The transformed message.
         
         """
-        sbox = SBOX
-        return self.ret(self._sbox(m, sbox) for m in message)
+        return self.ret(sbox.fwd(m) for m in message)
     
-    def sbox_inv(self, message: Sequence) -> Iterable:
+    def sbox_inv(self, message: Sequence, sbox: SBOX) -> Iterable:
         """
+        Reverse S-BOX transformations entrywise.
         
+        Parameters
+        ----------
+        message : Iterable
+            The transformed message.
+        sbox : SBOX
+            The original S-BOX object.
+        
+        Returns
+        -------
+        out : int
+            The original message.
+            
         """
-        # sbox = SBOX
-        # return self.ret(self._sbox_inv(m, sbox) for m in message)
-        sbox = INV_SBOX
-        return self.ret(self._sbox(m, INV_SBOX) for m in message)
+        return self.ret(sbox.bck(m) for m in message)
     
     def _invert(self, operation: Callable, *args) -> Callable:
         """
@@ -690,7 +1017,8 @@ class Context:
         operation : Callable
             The operation to be reversed.
         args : argument list
-            Arguments except the message for the operation.
+            Arguments (not including the message)
+            for the operation.
         
         Returns
         -------
@@ -909,6 +1237,17 @@ if '__main__' == __name__:
         3, 15, 7, 14
     ]
     shifts = [0, 1, 2, 3, 4, 5, 6, 7, 8, 7, 6, 5, 4, 3, 2, 1]
+    A = [
+        1, 0, 0, 0, 1, 1, 1, 1,
+        1, 1, 0, 0, 0, 1, 1, 1,
+        1, 1, 1, 0, 0, 0, 1, 1,
+        1, 1, 1, 1, 0, 0, 0, 1,
+        1, 1, 1, 1, 1, 0, 0, 0,
+        0, 1, 1, 1, 1, 1, 0, 0,
+        0, 0, 1, 1, 1, 1, 1, 0,
+        0, 0, 0, 1, 1, 1, 1, 1
+    ]
+    b = [1, 1, 0, 0, 0, 1, 1, 0]
     
     print(ctx.xor(msg1, msg2))
     print(ctx.xor_key(msg1, 42))
@@ -930,9 +1269,9 @@ if '__main__' == __name__:
     print(ctx.rol_rows(msg1, [2,3,-1,1]))
     print(ctx.ror_rows(msg7, [2,3,-1,1]))
     
-    print(hex(ctx._gmul(0x11, 0x45, 0x2b)))
-    print(hex(ctx._gmul(0x1e, 0xaa, 0x2b)))
-    print(hex(ctx._gmul(0x06, 0xff, 0xa6)))    # not irreducible
+    print(hex(gmul(8, 0x11, 0x45, 0x2b)))
+    print(hex(gmul(8, 0x1e, 0xaa, 0x2b)))
+    print(hex(gmul(8, 0x06, 0xff, 0xa6)))    # not irreducible
     
     print(ctx.mix_columns(msg1))
     print(ctx.unmix_columns(msg8))
@@ -1008,6 +1347,14 @@ if '__main__' == __name__:
     except ValueError as e:
         print(e)
     
+    sbox1 = SBOX(A, b, 0x1b)
+    assert sbox1.sbox == AES_SBOX
+    assert sbox1.sbox_inv == AES_INV_SBOX
+    
+    sbox2 = SBOX(AES_SBOX)
+    assert sbox2.sbox == AES_SBOX
+    assert sbox2.sbox_inv == AES_INV_SBOX
+    
     ctx = Context(8, 16, bytes)
     msg = b'AbCdEfGhIjKlMnOp'
     table = [
@@ -1027,7 +1374,7 @@ if '__main__' == __name__:
         [ctx.ror_key, 3],
         [ctx.rol, shifts],
         [ctx.mix_columns],
-        [ctx.sbox_inv],
+        [ctx.sbox_inv, sbox1],
         [ctx.permute_inv, table]
     ]).input(msg))
     
@@ -1040,7 +1387,6 @@ if '__main__' == __name__:
         [ctx.ror_key, 3],
         [ctx.rol, shifts],
         [ctx.mix_columns],
-        [ctx.sbox_inv],
+        [ctx.sbox_inv, sbox1],
         [ctx.permute_inv, table]
     ]).input(msg, reversed = True))
-    
