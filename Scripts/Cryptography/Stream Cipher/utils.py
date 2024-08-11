@@ -380,8 +380,11 @@ AES_INV_SBOX = [
 class SBOX:
     sbox = None
     
-    def __init__(self, *args, **kwargs):
-        l = len(args) + len(kwargs)
+    def __init__(self, *args, **kwargs0):
+        kwargs = kwargs0.copy()
+        if 'calc_inv' in kwargs0:
+            kwargs0.pop('calc_inv')
+        l = len(args) + len(kwargs0)
         if l == 3:
             self.__init__affine(*args, **kwargs)
         elif l == 1:
@@ -389,7 +392,7 @@ class SBOX:
         else:
             raise TypeError("Invalid args    :P")
         
-    def __init__affine(self, A: Sequence, b: Sequence, modulus: int):
+    def __init__affine(self, A: Sequence, b: Sequence, modulus: int, **kwargs):
         """
         Initialize an SBOX along with its inverse
         according to an affine transformation
@@ -421,9 +424,9 @@ class SBOX:
         self.A = A
         self.b = b
         self.modulus = modulus
-        self.init()
+        self.init(**kwargs)
     
-    def __init__table(self, sbox: Sequence):
+    def __init__table(self, sbox: Sequence, **kwargs):
         """
         Initialize an SBOX along with its inverse
         according to its (forward) lookup table.
@@ -442,17 +445,24 @@ class SBOX:
         self.sbox = sbox
         self.m = exp
         self.l = 1 << self.m
-        self.init()
+        self.init(**kwargs)
     
-    def init(self):
+    def init(self, calc_inv: bool = True):
         """
         Calculate the SBOX along with its inverse.
+        
+        Parameters
+        ----------
+        calc_inv : bool
+            Set `True` if the inverse of S-BOX needs
+            to be computed, else `False`.
         
         """
         if self.sbox == None:
             v = [ginv(self.m, k, self.modulus) if k else 0 for k in range(self.l)]
             self.sbox = [bitcat(xorsum(self.A[i*self.m + j] * (k >> j & 1) for j in range(self.m)) ^ self.b[i] for i in range(self.m-1, -1, -1)) for k in v]
-        self.sbox_inv = [self.sbox.index(k) for k in range(self.l)]
+        if calc_inv:
+            self.sbox_inv = [self.sbox.index(k) for k in range(self.l)]
     
     def fwd(self, entry: int) -> int:
         """
@@ -501,7 +511,7 @@ class SBOX:
 
 
 class Context:
-    def __init__(self, m: int, n: int, ret: type = list):
+    def __init__(self, m: int, n: int, ret: type):
         """
         Specify the context!
         
@@ -519,6 +529,18 @@ class Context:
             the number of entries in each message.
         ret : Iterable type
             Basic type for return values and messages.
+        
+        Examples
+        --------
+        
+        >>> ctx1 = Context(8, 16, bytes)
+        >>> ctx2 = Context(32, 4, list)
+        
+        Messages in `ctx1` take the form of
+        b'aaaaaaaaaaaaaaaa'
+        
+        Messages in `ctx2` take the form of
+        [1234567890, 2345678901, 3456789012, 4123569807]
         
         """
         self.m = m
@@ -1354,6 +1376,9 @@ if '__main__' == __name__:
     sbox2 = SBOX(AES_SBOX)
     assert sbox2.sbox == AES_SBOX
     assert sbox2.sbox_inv == AES_INV_SBOX
+    
+    sbox3 = SBOX(AES_SBOX, calc_inv = False)
+    print(hasattr(sbox3, 'sbox_inv'), hasattr(sbox3, 'sbox'))
     
     ctx = Context(8, 16, bytes)
     msg = b'AbCdEfGhIjKlMnOp'
