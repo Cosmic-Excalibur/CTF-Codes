@@ -315,6 +315,6 @@ if __name__ == "__main__":
     #h2_ = load('ramanujan_1011451427.sobj')
     #time h2 = ramanujan_polynomial_multi(-1011451427, 128, 128)
     #assert h1 == h2
-    #assert h2_ == h2ac
+    #assert h2_ == h2
     time h = ramanujan_polynomial_multi(-1035451427, 128, 128)
     save(h, 'ramanujan_1035451427.sobj')
