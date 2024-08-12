@@ -1,11 +1,15 @@
 """
-Commonly used utilities in stream ciphers 4 the lazy guys :p
-Can be renamed as "utils_lazy.py" to avoid namespace pollution.
+Python 3.9.13
+
+General-purpose stream cipher utilities 4 the lazy guys :p
+Rename this script as "utils_lazy.py" to avoid namespace pollution.
+
+Chinese name for this script:    "懒🐶流密码"
 """
 
 
 from collections.abc import Iterable, Sequence
-from typing import Callable
+from typing import Callable, List, Union
 from itertools import islice, cycle, count, chain
 import functools
 
@@ -339,7 +343,7 @@ UNMIX_COLUMN = [
     11, 13, 9, 14
 ]
 
-AES_SBOX = [
+AES_SBOX_TABLE = [
 	0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
 	0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
 	0xb7, 0xfd, 0x93, 0x26, 0x36, 0x3f, 0xf7, 0xcc, 0x34, 0xa5, 0xe5, 0xf1, 0x71, 0xd8, 0x31, 0x15,
@@ -358,7 +362,7 @@ AES_SBOX = [
 	0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16
 ]
 
-AES_INV_SBOX = [
+AES_SBOX_INV_TABLE = [
     0x52, 0x09, 0x6a, 0xd5, 0x30, 0x36, 0xa5, 0x38, 0xbf, 0x40, 0xa3, 0x9e, 0x81, 0xf3, 0xd7, 0xfb, 
     0x7c, 0xe3, 0x39, 0x82, 0x9b, 0x2f, 0xff, 0x87, 0x34, 0x8e, 0x43, 0x44, 0xc4, 0xde, 0xe9, 0xcb, 
     0x54, 0x7b, 0x94, 0x32, 0xa6, 0xc2, 0x23, 0x3d, 0xee, 0x4c, 0x95, 0x0b, 0x42, 0xfa, 0xc3, 0x4e, 
@@ -376,6 +380,7 @@ AES_INV_SBOX = [
     0xa0, 0xe0, 0x3b, 0x4d, 0xae, 0x2a, 0xf5, 0xb0, 0xc8, 0xeb, 0xbb, 0x3c, 0x83, 0x53, 0x99, 0x61, 
     0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0c, 0x7d
 ]
+
 
 class SBOX:
     sbox = None
@@ -508,6 +513,135 @@ class SBOX:
         """
         return self.sbox_inv[entry]
             
+
+
+AES_SBOX = SBOX(AES_SBOX_TABLE)
+
+
+
+class KeySchedule:
+    sche = None
+    unsche = None
+    round = 0
+    
+    def __init__(self, ctx: 'Context'):
+        """
+        Base class for a general-purpose
+        key schedule. Works like a generator.
+        
+        Both forward and backward schedules
+        are supported. If the forward schedule
+        is never entered, or current round is `0`,
+        the program will firstly complete the full
+        schedule and store all round keys generated.
+        The backward schedule is just a rewind of the
+        stored round keys from current round back to
+        `0`.
+        
+        When iterated, forward schedule will be entered
+        from round `0`.
+        
+        Call the magic method `__reversed__` to get
+        the backward schedule.
+        
+        Should be dealt carefully when the same key
+        schedule is used more than once.
+        
+        Parameters
+        ----------
+        ctx : Context
+            Specify the context!
+        
+        """
+        self.ctx = ctx
+        
+    def __iter__(self):
+        self.round = 0
+        self.sche = self.schedule()
+        return self
+    
+    def __next__(self):
+        if self.sche is None:
+            self.round = 0
+            self.sche = self.schedule()
+        return next(self.sche)
+    
+    def __reversed__(self):
+        if self.sche is None:
+            for _ in self: pass
+        if self.unsche is None:
+            self.unsche = self.unschedule()
+        return self.unsche
+
+
+
+class AES_KeySchedule(KeySchedule):
+    W = None
+    
+    def __init__(self, bits: int, K: Iterable, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        assert bits in (128, 192, 256), "Invalid AES key size: `%s`    :P" % bits
+        self.K = [list(chunk) for chunk in chunks(self.ctx.ret(K), 4)]
+        self.R = {128: 11, 192: 13, 256: 15}[bits]
+        self.N = {128:  4, 192:  6, 256:  8}[bits]
+        assert len(self.K) == self.N and len(self.K[-1]) == 4, "Invalid original key length~"
+        self.rcon = [[1, 0, 0, 0]]
+        for i in range({128: 10-1, 192: 8-1, 256: 7-1}[bits]):
+            self.rcon.append([gmul(8, self.rcon[-1][0], 2, 0x1b), 0, 0, 0])
+    
+    def rot_word(self, word: List):
+        return word[1:] + word[:1]
+    
+    def sub_word(self, word: List):
+        return [AES_SBOX.fwd(b) for b in word]
+    
+    def xor_word(self, *words):
+        return [xorsum(a) for a in zip(*words)]
+    
+    def cat_word(self, words: List[List]):
+        return sum(words, [])
+    
+    def schedule(self):
+        self.W = [None] * self.R * 4
+        for i in range(self.R*4):
+            if i < self.N:
+                self.W[i] = self.K[i]
+            elif i % self.N == 0:
+                self.W[i] = self.xor_word(self.W[i-self.N], self.sub_word(self.rot_word(self.W[i-1])), self.rcon[i//self.N - 1])
+            elif self.N > 6 and i % self.N == 4:
+                self.W[i] = self.xor_word(self.W[i-self.N], self.sub_word(self.W[i-1]))
+            else:
+                self.W[i] = self.xor_word(self.W[i-self.N], self.W[i-1])
+        while self.round < self.R:
+            yield self.ctx.ret(self.cat_word(self.W[self.round*4 + j] for j in range(4)))
+            self.round += 1
+        self.round -= 1
+    
+    def unschedule(self):
+        while self.round >= 0:
+            yield self.ctx.ret(self.cat_word(self.W[self.round*4 + j] for j in range(4)))
+            self.round -= 1
+        self.sche = None
+        self.unsche = None
+
+
+
+class AES256_KeySchedule(AES_KeySchedule):
+    def __init__(self, K: Iterable, *args, **kwargs):
+        super().__init__(256, K, *args, **kwargs)
+
+
+
+class AES192_KeySchedule(AES_KeySchedule):
+    def __init__(self, K: Iterable, *args, **kwargs):
+        super().__init__(192, K, *args, **kwargs)
+
+
+
+class AES128_KeySchedule(AES_KeySchedule):
+    def __init__(self, K: Iterable, *args, **kwargs):
+        super().__init__(128, K, *args, **kwargs)
+
 
 
 class Context:
@@ -793,7 +927,7 @@ class Context:
         """
         return self.ret((m >> key | m << (self.m - key)) & self.mask for m in message)
     
-    def rol_rows(self, message: Sequence, key: Iterable = NaturalNumbers()) -> Iterable:
+    def rol_rows(self, message: Sequence, key: Iterable = None) -> Iterable:
         """
         Circularly shift the entries of each row,
         leftward, provided that all entries indeed
@@ -820,6 +954,7 @@ class Context:
             The input message.
         key : Iterable of ints
             Shift operands for each row.
+            By default `key` is `0, 1, 2, ...`
         
         Returns
         -------
@@ -830,13 +965,14 @@ class Context:
         """
         assert self.is_square, "Not a square matrix."
         ret = [0] * self.n
+        if key is None: key = NaturalNumbers()
         for i, k in enumerate(key):
             if i >= self.order: break
             for j in range(self.order):
                 ret[i*self.order + j] = message[i*self.order + (j + k) % self.order]
         return self.ret(ret)
     
-    def ror_rows(self, message: Sequence, key: Iterable = NaturalNumbers()) -> Iterable:
+    def ror_rows(self, message: Sequence, key: Iterable = None) -> Iterable:
         """
         Circularly shift the entries of each row,
         rightward, provided that all entries indeed
@@ -863,6 +999,7 @@ class Context:
             The input message.
         key : Iterable
             Shift operands for each row.
+            By default `key` is `0, 1, 2, ...`
         
         Returns
         -------
@@ -873,10 +1010,101 @@ class Context:
         """
         assert self.is_square, "Not a square matrix."
         ret = [0] * self.n
+        if key is None: key = NaturalNumbers()
         for i, k in enumerate(key):
             if i >= self.order: break
             for j in range(self.order):
                 ret[i*self.order + j] = message[i*self.order + (j - k) % self.order]
+        return self.ret(ret)
+    
+    def rol_cols(self, message: Sequence, key: Iterable = None) -> Iterable:
+        """
+        Circularly shift the entries of each column,
+        upward, provided that all entries indeed
+        form a *square matrix*, i.e. `n = k^2` for
+        some integer k.
+        
+        `is_square` should be `True`.
+        
+        e.g. for `n = 16, key = [0, 1, 2, 3]`,
+        we shift the columns in the AES-style:
+        
+        a00 | a01 | a02 | a03        a00 | a05 | a10 | a15
+        
+        a04 | a05 | a06 | a07        a04 | a09 | a14 | a03
+                                ->
+        a08 | a09 | a10 | a11        a08 | a13 | a02 | a07
+        
+        a12 | a13 | a14 | a15        a12 | a01 | a06 | a11
+        
+        
+        Parameters
+        ----------
+        message : Iterable of ints
+            The input message.
+        key : Iterable of ints
+            Shift operands for each column.
+            By default `key` is `0, 1, 2, ...`
+        
+        Returns
+        -------
+        out : Iterable of ints
+            An iterable consisting of ints
+            resulting from the upward column shifting.
+        
+        """
+        assert self.is_square, "Not a square matrix."
+        ret = [0] * self.n
+        if key is None: key = NaturalNumbers()
+        for i, k in enumerate(key):
+            if i >= self.order: break
+            for j in range(self.order):
+                ret[j*self.order + i] = message[(j + k)%self.order*self.order + i]
+        return self.ret(ret)
+    
+    def ror_cols(self, message: Sequence, key: Iterable = None) -> Iterable:
+        """
+        Circularly shift the entries of each column,
+        downward, provided that all entries indeed
+        form a *square matrix*, i.e. `n = k^2` for
+        some integer k.
+        
+        `is_square` should be `True`.
+        
+        e.g. for `n = 16, key = [0, 1, 2, 3]`,
+        we unshift the columns in the AES-style:
+        
+        a00 | a01 | a02 | a03        a00 | a13 | a10 | a07
+        
+        a04 | a05 | a06 | a07        a04 | a01 | a14 | a11
+                                ->
+        a08 | a09 | a10 | a11        a08 | a05 | a02 | a15
+        
+        a12 | a13 | a14 | a15        a12 | a09 | a06 | a03
+        
+        
+        Parameters
+        ----------
+        message : Iterable of ints
+            The input message.
+        key : Iterable of ints
+            Shift operands for each column.
+            By default `key` is `0, 1, 2, ...`
+        
+        Returns
+        -------
+        out : Iterable of ints
+            An iterable consisting of ints
+            resulting from the downward column shifting.
+        
+        """
+        assert self.is_square, "Not a square matrix."
+        ret = [0] * self.n
+        if key is None: key = NaturalNumbers()
+        for i, k in enumerate(key):
+            if i >= self.order: break
+            for j in range(self.order):
+                ret[j*self.order + i] = message[(j - k)%self.order*self.order + i]
         return self.ret(ret)
     
     def bit_reverse(self, message: Iterable) -> Iterable:
@@ -962,6 +1190,68 @@ class Context:
     
     def unmix_columns(self, message: Sequence) -> Iterable:
         """
+        Similar to the inverse of Rijndael MixColumns
+        transformation except it's unscrambling the rows.
+        
+        .. note::
+            Linear transformations other than
+            the Rijndael MixColumns will be supported
+            in the future.
+        
+        Parameters
+        ----------
+        message : Iterable of ints
+            The transformed message as a `order` x `order` matrix.
+        
+        Returns
+        -------
+        out : Iterable of ints
+            The original message.
+        
+        """
+        matrix = UNMIX_COLUMN
+        modulus = 0x1b
+        assert self.is_square, "Not a square matrix."
+        assert self.order == 4, "Not a 4 x 4 matrix."
+        ret = [0] * self.n
+        for i in range(self.order):
+            tmp = self._mix_column(message[i: self.n + i: self.order], matrix, modulus)
+            ret[i: self.n + i: self.order] = tmp
+        return self.ret(ret)
+    
+    def mix_rows(self, message: Sequence) -> Iterable:
+        """
+        Similar to the Rijndael MixColumns transformation
+        except it's scrambling the rows.
+        
+        .. note::
+            Linear transformations other than
+            the Rijndael MixColumns will be supported
+            in the future.
+        
+        Parameters
+        ----------
+        message : Iterable of ints
+            The target message as a `order` x `order` matrix.
+        
+        Returns
+        -------
+        out : Iterable of ints
+            The transformed message.
+        
+        """
+        assert self.is_square, "Not a square matrix."
+        assert self.order == 4, "Not a 4 x 4 matrix."
+        matrix = MIX_COLUMN
+        modulus = 0x1b
+        ret = [0] * self.n
+        for i in range(self.order):
+            tmp = self._mix_column(message[i*self.order: self.order + i*self.order], matrix, modulus)
+            ret[i*self.order: self.order + i*self.order] = tmp
+        return self.ret(ret)
+    
+    def unmix_rows(self, message: Sequence) -> Iterable:
+        """
         Invert the Rijndael MixColumns transformation
         on each column of the message as a
         `order` x `order` matrix.
@@ -988,8 +1278,8 @@ class Context:
         assert self.order == 4, "Not a 4 x 4 matrix."
         ret = [0] * self.n
         for i in range(self.order):
-            tmp = self._mix_column(message[i: self.n + i: self.order], matrix, modulus)
-            ret[i: self.n + i: self.order] = tmp
+            tmp = self._mix_column(message[i*self.order: self.order + i*self.order], matrix, modulus)
+            ret[i*self.order: self.order + i*self.order] = tmp
         return self.ret(ret)
     
     def sbox(self, message: Iterable, sbox: SBOX) -> Iterable:
@@ -1029,6 +1319,53 @@ class Context:
             
         """
         return self.ret(sbox.bck(m) for m in message)
+    
+    def add_round_key(self, message: Iterable, key: KeySchedule) -> Iterable:
+        """
+        Each entry of the message is combined
+        with an entry of the round key using
+        bitwise xor.
+        
+        Parameters
+        ----------
+        message : Iterable of ints
+            The target message
+        key : KeySchedule
+            The key schedule to generate
+            round keys for each round.
+        
+        Returns
+        -------
+        out : Iterable of ints
+            An iterable consisting of ints
+            resulting from the round key addition.
+        
+        """
+        round_key = next(key)
+        return self.ret(x ^ y for x, y in zip(message, round_key))
+    
+    def remove_round_key(self, message: Iterable, key: KeySchedule) -> Iterable:
+        """
+        Inversion of `add_round_key`...
+        
+        Parameters
+        ----------
+        message : Iterable of ints
+            The target message
+        key : KeySchedule
+            The key schedule to generate
+            round keys for each round.
+        
+        Returns
+        -------
+        out : Iterable of ints
+            An iterable consisting of ints
+            resulting from the inverted
+            round key addition.
+        
+        """
+        round_key = next(reversed(key))
+        return self.ret(x ^ y for x, y in zip(message, round_key))
     
     def _invert(self, operation: Callable, *args) -> Callable:
         """
@@ -1078,6 +1415,18 @@ class Context:
             return lambda msg: self.sbox_inv(msg, *args)
         elif operation == self.sbox_inv:
             return lambda msg: self.sbox(msg, *args)
+        elif operation == self.add_round_key:
+            return lambda msg: self.remove_round_key(msg, *args)
+        elif operation == self.remove_round_key:
+            return lambda msg: self.add_round_key(msg, *args)
+        elif operation == self.rol_cols:
+            return lambda msg: self.ror_cols(msg, *args)
+        elif operation == self.ror_cols:
+            return lambda msg: self.rol_cols(msg, *args)
+        elif operation == self.mix_rows:
+            return lambda msg: self.unmix_rows(msg, *args)
+        elif operation == self.unmix_rows:
+            return lambda msg: self.mix_rows(msg, *args)
         else:
             raise ValueError("Unrecognized operation: %s" % (operation.__name__ if hasattr(operation, '__name__') else str(operation)))
         
@@ -1230,6 +1579,7 @@ class Streamer:
             if maxstep == 0: return msg
             msg = op(msg) if reversed else op[0](msg, *op[1:])
             maxstep -= 1
+            # if type(msg) == bytes: print('%-20s'%(op.__name__ if reversed else op[0].__name__), msg.hex())    # Debugging `bytes`    :P
         return msg
 
 
@@ -1297,6 +1647,9 @@ if '__main__' == __name__:
     
     print(ctx.mix_columns(msg1))
     print(ctx.unmix_columns(msg8))
+    
+    print(bytes(ctx._mix_column(b'\xdb\x13\x53\x45', MIX_COLUMN, 0x1b)).hex())
+    print(bytes(ctx._mix_column(b'\xf2\x0a\x22\x5c', MIX_COLUMN, 0x1b)).hex())
     
     ctx2 = Context(8, 17, bytes)
     
@@ -1370,14 +1723,14 @@ if '__main__' == __name__:
         print(e)
     
     sbox1 = SBOX(A, b, 0x1b)
-    assert sbox1.sbox == AES_SBOX
-    assert sbox1.sbox_inv == AES_INV_SBOX
+    assert sbox1.sbox == AES_SBOX_TABLE
+    assert sbox1.sbox_inv == AES_SBOX_INV_TABLE
     
-    sbox2 = SBOX(AES_SBOX)
-    assert sbox2.sbox == AES_SBOX
-    assert sbox2.sbox_inv == AES_INV_SBOX
+    sbox2 = SBOX(AES_SBOX_TABLE)
+    assert sbox2.sbox == AES_SBOX_TABLE
+    assert sbox2.sbox_inv == AES_SBOX_INV_TABLE
     
-    sbox3 = SBOX(AES_SBOX, calc_inv = False)
+    sbox3 = SBOX(AES_SBOX_TABLE, calc_inv = False)
     print(hasattr(sbox3, 'sbox_inv'), hasattr(sbox3, 'sbox'))
     
     ctx = Context(8, 16, bytes)
@@ -1394,7 +1747,7 @@ if '__main__' == __name__:
     print(streamer.set_stream([
         [ctx.xor, key],
         [ctx.mix_columns],
-        [ctx.rol_rows],
+        [ctx.rol_rows, [3,1,0,2]],
         [ctx.bit_reverse],
         [ctx.ror_key, 3],
         [ctx.rol, shifts],
@@ -1403,11 +1756,11 @@ if '__main__' == __name__:
         [ctx.permute_inv, table]
     ]).input(msg))
     
-    msg = b"\x91\x18\xe6[S\x9aL\x1c\xf0'\xa5\xc0Q\xcb\x85\x80"
+    msg = b'\x11\xbbtH\xc6\xea\x8e_h\x19\x7f\x8a\xb5\x1b{\x88'
     print(streamer.set_stream([
         [ctx.xor, key],
         [ctx.mix_columns],
-        [ctx.rol_rows],
+        [ctx.rol_rows, [3,1,0,2]],
         [ctx.bit_reverse],
         [ctx.ror_key, 3],
         [ctx.rol, shifts],
@@ -1415,3 +1768,170 @@ if '__main__' == __name__:
         [ctx.sbox_inv, sbox1],
         [ctx.permute_inv, table]
     ]).input(msg, reversed = True))
+    
+    sche256 = AES256_KeySchedule(b'\x00'*32, ctx)
+    
+    for _ in range(15):
+        print(next(sche256).hex())
+    print()
+    
+    sche256 = AES256_KeySchedule(b'\x00'*32, ctx)
+    sche = iter(sche256)
+    
+    for _ in range(15):
+        print(next(sche).hex())
+    print()
+    
+    sche = iter(sche256)
+    for _ in range(15):
+        print(next(sche).hex())
+    print()
+    
+    for key in sche:
+        print(key.hex())
+    print()
+        
+    sche256 = AES256_KeySchedule(bytes.fromhex('000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f'), ctx)
+    sche = iter(sche256)
+    
+    for _ in range(15):
+        print(next(sche).hex())
+    print()
+    
+    for key in reversed(sche):
+        print(key.hex())
+    print()
+    
+    sche256 = AES256_KeySchedule(bytes.fromhex('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'), ctx)
+    
+    for key in reversed(sche256):
+        print(key.hex())
+    print()
+    
+    sche192 = AES192_KeySchedule(bytes.fromhex('ffffffffffffffffffffffffffffffffffffffffffffffff'), ctx)
+    
+    for key in reversed(sche192):
+        print(key.hex())
+    print()
+    
+    sche128 = AES128_KeySchedule(bytes.fromhex('6920e299a5202a6d656e636869746f2a'), ctx)
+    
+    for _ in range(5):
+        print(next(sche128).hex())
+    print()
+    
+    for key in reversed(sche128):
+        print(key.hex())
+    print()
+    
+    sche128 = AES128_KeySchedule(bytes.fromhex('6920e299a5202a6d656e636869746f2a'), ctx)
+    
+    for _ in range(5):
+        print(next(sche128).hex())
+    print()
+    
+    for _ in range(5):
+        print(next(reversed(sche128)).hex())
+    print()
+    
+    
+    # AES-128
+    ctx = Context(8, 16, bytes)
+    msg = b'This is 16 bytes'
+    key = b'Another 16 bytes'
+    sche = AES128_KeySchedule(key, ctx)
+    streamer = Streamer(ctx)
+    workflow = [
+        [ctx.add_round_key, sche]
+    ]
+    rounds = 10
+    for _ in range(rounds - 1):
+        workflow.extend([
+            [ctx.sbox, AES_SBOX],
+            [ctx.rol_cols],
+            [ctx.mix_rows],
+            [ctx.add_round_key, sche]
+        ])
+    workflow.extend([
+        [ctx.sbox, AES_SBOX],
+        [ctx.rol_cols],
+        [ctx.add_round_key, sche]
+    ])
+    print()
+    print(streamer.set_stream(workflow).input(msg))
+    
+    ct = b'\xc6q\x02I\xbaT\xb6\x1c\xc5r\x87\x87\xd3\xac\xe4\xb5'
+    print(streamer.input(ct, reversed = True))
+    # END
+    
+    # from Crypto.Cipher import AES
+    # cipher = AES.new(key, AES.MODE_ECB)
+    # print(cipher.encrypt(msg))
+    
+    
+    # AES-192
+    ctx = Context(8, 16, bytes)
+    msg = b'This is 16 bytes'
+    key = b'This is exactly 24 bytes'
+    sche = AES192_KeySchedule(key, ctx)
+    streamer = Streamer(ctx)
+    workflow = [
+        [ctx.add_round_key, sche]
+    ]
+    rounds = 12
+    for _ in range(rounds - 1):
+        workflow.extend([
+            [ctx.sbox, AES_SBOX],
+            [ctx.rol_cols],
+            [ctx.mix_rows],
+            [ctx.add_round_key, sche]
+        ])
+    workflow.extend([
+        [ctx.sbox, AES_SBOX],
+        [ctx.rol_cols],
+        [ctx.add_round_key, sche]
+    ])
+    print()
+    print(streamer.set_stream(workflow).input(msg))
+    
+    ct = b'\xab\xd6\xd6\xe2\x94\xb6\xa6E\x89\x13fEcA\xbb\x8f'
+    print(streamer.input(ct, reversed = True))
+    # END
+    
+    # from Crypto.Cipher import AES
+    # cipher = AES.new(key, AES.MODE_ECB)
+    # print(cipher.encrypt(msg))
+    
+    
+    # AES-256
+    ctx = Context(8, 16, bytes)
+    msg = b'This is 16 bytes'
+    key = b'This is jaw-droppingly 32 bytes!'
+    sche = AES256_KeySchedule(key, ctx)
+    streamer = Streamer(ctx)
+    workflow = [
+        [ctx.add_round_key, sche]
+    ]
+    rounds = 14
+    for _ in range(rounds - 1):
+        workflow.extend([
+            [ctx.sbox, AES_SBOX],
+            [ctx.rol_cols],
+            [ctx.mix_rows],
+            [ctx.add_round_key, sche]
+        ])
+    workflow.extend([
+        [ctx.sbox, AES_SBOX],
+        [ctx.rol_cols],
+        [ctx.add_round_key, sche]
+    ])
+    print()
+    print(streamer.set_stream(workflow).input(msg))
+    
+    ct = b'M\xa8\xb1\x89w\xe2O\xd2\xa0\x90\x0b\x95\x13z\xf0I'
+    print(streamer.input(ct, reversed = True))
+    # END
+    
+    # from Crypto.Cipher import AES
+    # cipher = AES.new(key, AES.MODE_ECB)
+    # print(cipher.encrypt(msg))
