@@ -1,10 +1,10 @@
 """
 Python 3.9.13
 
-General-purpose stream cipher utilities 4 the lazy guys :p
+General-purpose block cipher utilities 4 the lazy guys :p
 Rename this script as "utils_lazy.py" to avoid namespace pollution.
 
-Chinese name for this script:    "懒🐶流密码"
+Chinese name for this script:    "懒🐶块密码"
 """
 
 
