@@ -69,12 +69,12 @@ def chunks(iterable: Iterable, size: int, proc: Callable = None):
 bitcat : Bitwise concatenation
 intcat : Monic bit sequence bitwise concatenation
 xorsum : Xor summation
-xor    : Entrywise xor
+xor    : Entrywise xor with a `bytes`-type output
 """
-bitcat = lambda bits:  functools.reduce(lambda a, b: a << 1 | b, bits)
-intcat = lambda ints:  functools.reduce(lambda a, b: a << b.bit_length() | b, ints)
-xorsum = lambda ints:  functools.reduce(lambda a, b: a ^ b, ints)
-xor    = lambda args:  bytes(xorsum(a) for a in zip(*args))
+bitcat = lambda bits:   functools.reduce(lambda a, b: a << 1 | b, bits)
+intcat = lambda ints:   functools.reduce(lambda a, b: a << b.bit_length() | b, ints)
+xorsum = lambda ints:   functools.reduce(lambda a, b: a ^ b, ints)
+xor    = lambda *args:  bytes(xorsum(a) for a in zip(*args))
 
 
 def isqrt(n: int) -> int:
