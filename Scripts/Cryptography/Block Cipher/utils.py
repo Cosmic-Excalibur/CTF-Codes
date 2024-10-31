@@ -29,6 +29,7 @@ def chunks(iterable: Iterable, size: int, proc: Callable = None):
     proc : Callable
         Before outputting, chunks are passed to this
         processor function / class unless it's set to `None`.
+        Similar to `map`.
     
     Examples
     --------
@@ -48,6 +49,7 @@ def chunks(iterable: Iterable, size: int, proc: Callable = None):
     <itertools.chain object at 0x000001D87EF2A520>
     
     >>> for chunk in chunks(range(10), 3, bytes):
+    ... # also for chunk in map(bytes, chunks(range(10), 3)):
     ...     print(chunk)
     b'\x00\x01\x02'
     b'\x03\x04\x05'
