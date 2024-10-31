@@ -14,7 +14,7 @@ from itertools import islice, cycle, count, chain
 import functools
 
 
-def chunks(iterable: Iterable, size: int):
+def chunks(iterable: Iterable, size: int, proc: Callable = None):
     """
     Split an iterable into chunks of "smaller" iterables,
     works as generator.
@@ -26,6 +26,9 @@ def chunks(iterable: Iterable, size: int):
         `bytes`, `iterator` and so on.
     size : int
         The maximum of each chunk.
+    proc : Callable
+        Before outputting, chunks are passed to this
+        processor function / class unless it's set to `None`.
     
     Examples
     --------
@@ -44,22 +47,32 @@ def chunks(iterable: Iterable, size: int):
     <itertools.chain object at 0x000001D87EDB7D30>
     <itertools.chain object at 0x000001D87EF2A520>
     
+    >>> for chunk in chunks(range(10), 3, bytes):
+    ...     print(chunk)
+    b'\x00\x01\x02'
+    b'\x03\x04\x05'
+    b'\x06\x07\x08'
+    b'\t'
+    
     """
     i = iter(iterable)
+    flag = proc == None
     for first in i:
         rest = islice(i, size - 1)
-        yield chain([first], rest)
+        yield chain([first], rest) if flag else proc(chain([first], rest))
         next(islice(rest, size - 1, None), None)
         
 
 """
 bitcat : Bitwise concatenation
 intcat : Monic bit sequence bitwise concatenation
-xorsum : Xor summation 
+xorsum : Xor summation
+xor    : Entrywise xor
 """
-bitcat = lambda bits: functools.reduce(lambda a, b: a << 1 | b, bits)
-intcat = lambda ints: functools.reduce(lambda a, b: a << b.bit_length() | b, ints)
-xorsum = lambda ints: functools.reduce(lambda a, b: a ^ b, ints)
+bitcat = lambda bits:  functools.reduce(lambda a, b: a << 1 | b, bits)
+intcat = lambda ints:  functools.reduce(lambda a, b: a << b.bit_length() | b, ints)
+xorsum = lambda ints:  functools.reduce(lambda a, b: a ^ b, ints)
+xor    = lambda args:  bytes(xorsum(a) for a in zip(*args))
 
 
 def isqrt(n: int) -> int:
@@ -225,6 +238,8 @@ def gmul(m: int, a: int, b: int, modulus: int) -> int:
     and equivalently `0xb9`.
     
     """
+    if b == 0:
+        return 0
     if b < 0:
         raise ValueError("Multiplicand `b` must not be negative.")
     if b == 1:
@@ -524,7 +539,7 @@ class KeySchedule:
     unsche = None
     round = 0
     
-    def __init__(self, ctx: 'Context'):
+    def __init__(self, ctx: 'Context', sbox: 'SBOX' = AES_SBOX):
         """
         Base class for a general-purpose
         key schedule. Works like a generator.
@@ -551,9 +566,13 @@ class KeySchedule:
         ----------
         ctx : Context
             Specify the context!
+        sbox : SBOX
+            Custom S-BOX to use.
+            `AES_SBOX` by default.
         
         """
         self.ctx = ctx
+        self.sbox = sbox
         
     def __iter__(self):
         self.round = 0
@@ -593,7 +612,7 @@ class AES_KeySchedule(KeySchedule):
         return word[1:] + word[:1]
     
     def sub_word(self, word: List):
-        return [AES_SBOX.fwd(b) for b in word]
+        return [self.sbox.fwd(b) for b in word]
     
     def xor_word(self, *words):
         return [xorsum(a) for a in zip(*words)]
