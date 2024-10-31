@@ -539,7 +539,7 @@ class KeySchedule:
     unsche = None
     round = 0
     
-    def __init__(self, ctx: 'Context', sbox: 'SBOX' = AES_SBOX):
+    def __init__(self, ctx: 'Context'):
         """
         Base class for a general-purpose
         key schedule. Works like a generator.
@@ -566,13 +566,9 @@ class KeySchedule:
         ----------
         ctx : Context
             Specify the context!
-        sbox : SBOX
-            Custom S-BOX to use.
-            `AES_SBOX` by default.
         
         """
         self.ctx = ctx
-        self.sbox = sbox
         
     def __iter__(self):
         self.round = 0
@@ -597,8 +593,9 @@ class KeySchedule:
 class AES_KeySchedule(KeySchedule):
     W = None
     
-    def __init__(self, bits: int, K: Iterable, *args, **kwargs):
+    def __init__(self, bits: int, K: Iterable, *args, sbox: 'SBOX' = AES_SBOX, **kwargs):
         super().__init__(*args, **kwargs)
+        self.sbox = sbox
         assert bits in (128, 192, 256), "Invalid AES key size: `%s`    :P" % bits
         self.K = [list(chunk) for chunk in chunks(self.ctx.ret(K), 4)]
         self.R = {128: 11, 192: 13, 256: 15}[bits]
@@ -646,20 +643,20 @@ class AES_KeySchedule(KeySchedule):
 
 
 class AES256_KeySchedule(AES_KeySchedule):
-    def __init__(self, K: Iterable, *args, **kwargs):
-        super().__init__(256, K, *args, **kwargs)
+    def __init__(self, K: Iterable, ctx: 'Context', *args, **kwargs):
+        super().__init__(256, K, *args, ctx = ctx, **kwargs)
 
 
 
 class AES192_KeySchedule(AES_KeySchedule):
-    def __init__(self, K: Iterable, *args, **kwargs):
-        super().__init__(192, K, *args, **kwargs)
+    def __init__(self, K: Iterable, ctx: 'Context', *args, **kwargs):
+        super().__init__(192, K, *args, ctx = ctx, **kwargs)
 
 
 
 class AES128_KeySchedule(AES_KeySchedule):
-    def __init__(self, K: Iterable, *args, **kwargs):
-        super().__init__(128, K, *args, **kwargs)
+    def __init__(self, K: Iterable, ctx: 'Context', *args, **kwargs):
+        super().__init__(128, K, *args, ctx = ctx, **kwargs)
 
 
 
