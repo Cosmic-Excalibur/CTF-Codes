@@ -5,6 +5,8 @@ General-purpose block cipher utilities 4 the lazy guys :p
 Rename this script as "utils_lazy.py" to avoid namespace pollution.
 
 Chinese name for this script:    "懒🐶块密码"
+
+Suitable for various CTF challenges involving tampered block ciphers.
 """
 
 
@@ -256,7 +258,7 @@ def gmul(m: int, a: int, b: int, modulus: int) -> int:
 def gdeg(a: int) -> int:
     """
     The degree of `a` as a polynomial on `GF(2)[x]`.
-    More simply `a.bit_length() - 1`.
+    Or simply `a.bit_length() - 1`.
     
     ref: https://stackoverflow.com/questions/45442396/a-pure-python-way-to-calculate-the-multiplicative-inverse-in-gf28-using-pytho
     
@@ -272,12 +274,7 @@ def gdeg(a: int) -> int:
         The degree of the polynomial.
     
     """
-    res = 0
-    a >>= 1
-    while a:
-        a >>= 1;
-        res += 1;
-    return res
+    return a.bit_length() - 1
 
 def ginv(m: int, a: int, modulus: int) -> int:
     """
